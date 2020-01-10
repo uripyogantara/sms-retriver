@@ -5,21 +5,18 @@ import android.content.Intent
 import android.content.IntentFilter
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.util.Log
 import com.google.android.gms.auth.api.phone.SmsRetriever
 import kotlinx.android.synthetic.main.activity_main.*
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), SmsBroadcastReceiver.SmsBroadcastReceiverListener {
     lateinit var smsBroadcastReceiver: SmsBroadcastReceiver
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        initAppSignature()
         startSmsUserConsent()
-    }
-
-    override fun onStart() {
-        super.onStart()
-        registerToSmsBroadcastReceiver()
     }
 
     override fun onStop() {
@@ -27,27 +24,17 @@ class MainActivity : AppCompatActivity() {
         unregisterReceiver(smsBroadcastReceiver)
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        when (requestCode) {
-            REQ_USER_CONSENT -> {
-                if ((resultCode == Activity.RESULT_OK) && (data != null)) {
-                    //That gives all message to us. We need to get the code from inside with regex
-                    val message = data.getStringExtra(SmsRetriever.EXTRA_SMS_MESSAGE)
-                    val code = message?.let { fetchVerificationCode(it) }
+    private fun initAppSignature(){
+        val appSignatureHelper = AppSignatureHelper(this)
+        Log.i("Signature", "HashKey: " + appSignatureHelper.getAppSignatures()[0]);
 
-                    tv_message.text = code
-                }
-            }
-        }
     }
-
     private fun startSmsUserConsent() {
+        registerToSmsBroadcastReceiver()
         SmsRetriever.getClient(this).also {
             //We can add sender phone number or leave it blank
-            it.startSmsUserConsent(null /* or null */)
+            it.startSmsRetriever()
                 .addOnSuccessListener {
-//                    Toast.makeText(this,"LISTE")
                     tv_message.text = "Listening Success"
                 }
                 .addOnFailureListener {
@@ -57,28 +44,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun registerToSmsBroadcastReceiver() {
-        smsBroadcastReceiver = SmsBroadcastReceiver().also {
-            it.smsBroadcastReceiverListener = object : SmsBroadcastReceiver.SmsBroadcastReceiverListener {
-                override fun onSuccess(intent: Intent?) {
-                    intent?.let { context -> startActivityForResult(context, REQ_USER_CONSENT) }
-                }
+        smsBroadcastReceiver = SmsBroadcastReceiver()
 
-                override fun onFailure() {
-                }
-            }
-        }
+        smsBroadcastReceiver.setListener(this)
 
         val intentFilter = IntentFilter(SmsRetriever.SMS_RETRIEVED_ACTION)
         registerReceiver(smsBroadcastReceiver, intentFilter)
     }
 
-    private fun fetchVerificationCode(message: String): String {
-        return Regex("(\\d{6})").find(message)?.value ?: ""
+    override fun onSuccess(otp: String) {
+        tv_message.text = otp
     }
 
-    companion object {
-        const val TAG = "SMS_USER_CONSENT"
-
-        const val REQ_USER_CONSENT = 100
+    override fun onFailure() {
+        tv_message.text = "Failure"
     }
 }

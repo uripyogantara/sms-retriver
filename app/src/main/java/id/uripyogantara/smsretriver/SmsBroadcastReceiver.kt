@@ -9,7 +9,7 @@ import com.google.android.gms.common.api.Status
 
 class SmsBroadcastReceiver : BroadcastReceiver() {
 
-    lateinit var smsBroadcastReceiverListener: SmsBroadcastReceiverListener
+    private var smsBroadcastReceiverListener: SmsBroadcastReceiverListener? = null
 
     override fun onReceive(context: Context?, intent: Intent?) {
 
@@ -20,20 +20,28 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
 
             when (smsRetrieverStatus.statusCode) {
                 CommonStatusCodes.SUCCESS -> {
-                    extras.getParcelable<Intent>(SmsRetriever.EXTRA_CONSENT_INTENT).also {
-                        smsBroadcastReceiverListener.onSuccess(it)
-                    }
+                    val message : String = extras.get(SmsRetriever.EXTRA_SMS_MESSAGE) as String
+                    val otp = fetchVerificationCode(message)
+                    smsBroadcastReceiverListener?.onSuccess(otp)
                 }
 
                 CommonStatusCodes.TIMEOUT -> {
-                    smsBroadcastReceiverListener.onFailure()
+                    smsBroadcastReceiverListener?.onFailure()
                 }
             }
         }
     }
 
+    fun setListener(listener: SmsBroadcastReceiverListener){
+        this.smsBroadcastReceiverListener=listener
+    }
+
+    private fun fetchVerificationCode(message: String): String {
+        return Regex("(\\d{6})").find(message)?.value ?: ""
+    }
+
     interface SmsBroadcastReceiverListener {
-        fun onSuccess(intent: Intent?)
+        fun onSuccess(otp:String)
         fun onFailure()
     }
 }
